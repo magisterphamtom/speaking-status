@@ -12,6 +12,11 @@
  * - Marqueur masqué si le jeton n'est pas visible (vision, niveaux de scène v14)
  * - Message clair quand le micro est bloqué (connexion http non sécurisée)
  * - Outil de diagnostic : game.modules.get("speaking-status").api.diagnostic()
+ *
+ * 1.3.2
+ * - Bouton « Activer le micro » quand le micro n'est pas encore autorisé :
+ *   la demande se fait après un clic (mieux acceptée par les navigateurs)
+ * - Explications affichées si le micro est bloqué ou introuvable
  */
 
 (() => {
@@ -85,6 +90,29 @@
         background: #e33;
       }
       .speaking-status-range { width: 100%; }
+      /* Bouton « Activer le micro » */
+      #speaking-status-prompt {
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10000;
+        max-width: 520px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: rgba(20, 20, 24, 0.95);
+        color: #f0f0f0;
+        border: 2px solid #3BA53B;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+        font-size: 14px;
+        line-height: 1.35;
+      }
+      #speaking-status-prompt .ss-buttons { display: flex; gap: 6px; }
+      #speaking-status-prompt .ss-enable { flex: 1; }
+      #speaking-status-prompt .ss-close { flex: 0 0 36px; }
     `;
     document.head.append(style);
   }
@@ -258,9 +286,84 @@
     }
   }
 
-  async function startMicrophoneMonitor() {
-    if (monitor) return;
+  /* ------------------------------------------------------------ */
+  /*  Bouton « Activer le micro »                                 */
+  /* ------------------------------------------------------------ */
 
+  /**
+   * Petit panneau affiché tant que le micro n'est pas actif.
+   * La demande d'autorisation faite après un clic est mieux acceptée
+   * par les navigateurs, et le clic débloque aussi l'audio.
+   */
+  function showMicPrompt(message) {
+    let panel = document.getElementById("speaking-status-prompt");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "speaking-status-prompt";
+      panel.innerHTML = `
+        <div class="ss-text"></div>
+        <div class="ss-buttons">
+          <button type="button" class="ss-enable"><i class="fa-solid fa-microphone"></i> Activer le micro</button>
+          <button type="button" class="ss-close" title="Fermer"><i class="fa-solid fa-xmark"></i></button>
+        </div>`;
+      panel.querySelector(".ss-enable").addEventListener("click", async ev => {
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        const ok = await startMicrophoneMonitor();
+        btn.disabled = false;
+        if (ok) ui.notifications?.info("Speaking Status : micro activé. Parle pour vérifier que ton nom s'allume.");
+      });
+      panel.querySelector(".ss-close").addEventListener("click", () => panel.remove());
+      document.body.append(panel);
+    }
+    panel.querySelector(".ss-text").textContent = message;
+  }
+
+  function hideMicPrompt() {
+    document.getElementById("speaking-status-prompt")?.remove();
+  }
+
+  const BLOCKED_HELP =
+    "Micro bloqué par le navigateur. Clique sur l'icône à gauche de l'adresse (cadenas ou réglages), " +
+    "passe « Microphone » sur « Autoriser », recharge la page (F5), puis clique sur « Activer le micro ».";
+
+  /** Au chargement : démarre directement si le micro est déjà autorisé, sinon affiche le bouton. */
+  async function autoStartOrAsk() {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      return startMicrophoneMonitor(); // affiche le message http
+    }
+    let state = "prompt";
+    try {
+      state = (await navigator.permissions.query({ name: "microphone" })).state;
+    } catch { /* navigateur sans cette API : on demandera par le bouton */ }
+
+    if (state === "granted") {
+      const ok = await startMicrophoneMonitor();
+      if (!ok) showMicPrompt(`Speaking Status : le micro ne répond pas (${micError}).`);
+    } else if (state === "denied") {
+      micError = "autorisation du micro refusée dans le navigateur";
+      showMicPrompt(`Speaking Status : ${BLOCKED_HELP}`);
+    } else {
+      showMicPrompt("Speaking Status : pour que ton jeton s'allume quand tu parles, active ton micro.");
+    }
+  }
+
+  /* ------------------------------------------------------------ */
+
+  let starting = null;
+
+  /** Démarre la mesure du micro. Renvoie true si le micro est actif. */
+  function startMicrophoneMonitor() {
+    if (monitor) {
+      monitor.ctx?.resume?.();
+      hideMicPrompt();
+      return Promise.resolve(true);
+    }
+    starting ??= _startMicrophoneMonitor().finally(() => { starting = null; });
+    return starting;
+  }
+
+  async function _startMicrophoneMonitor() {
     // Le navigateur interdit le micro sur une page http non sécurisée
     // (ex. http://1.2.3.4:30000) : seuls https:// et localhost sont autorisés.
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -271,7 +374,7 @@
         "Il faut une adresse en https:// (ou localhost).",
         { permanent: true }
       );
-      return;
+      return false;
     }
 
     let stream;
@@ -280,12 +383,15 @@
     } catch (err) {
       micError = `${err?.name ?? "Erreur"} : ${err?.message ?? err}`;
       console.warn(`${MODULE_ID} | micro inaccessible`, err);
-      ui.notifications?.warn(
-        "Speaking Status : impossible d'accéder au micro (autorisation refusée ou aucun micro détecté)."
-      );
-      return;
+      const denied = err?.name === "NotAllowedError" || err?.name === "SecurityError";
+      showMicPrompt(denied
+        ? `Speaking Status : ${BLOCKED_HELP}`
+        : "Speaking Status : aucun micro trouvé. Vérifie qu'il est branché et autorisé dans Windows " +
+          "(Paramètres → Confidentialité → Microphone), puis réessaie.");
+      return false;
     }
     micError = null;
+    hideMicPrompt();
 
     // Mesure maison (Web Audio) — même échelle en dB que Foundry (≈ -140 à 0)
     try {
@@ -311,7 +417,7 @@
       }, 50);
 
       monitor = { stream, ctx, timer };
-      return;
+      return true;
     } catch (err) {
       console.warn(`${MODULE_ID} | Web Audio indisponible, repli sur game.audio`, err);
     }
@@ -320,7 +426,11 @@
     if (game.audio?.startLevelReports) {
       game.audio.startLevelReports(MODULE_ID, stream, onLevel, 50);
       monitor = { stream, foundry: true };
+      return true;
     }
+    micError = "mesure du niveau audio impossible dans ce navigateur";
+    stream.getTracks().forEach(t => t.stop());
+    return false;
   }
 
   function stopMicrophoneMonitor() {
@@ -365,10 +475,11 @@
       "Indicateur sur le jeton activé": !!getSetting("token")
     };
     console.table(info);
+    if (!monitor && window.isSecureContext) showMicPrompt("Speaking Status : ton micro n'est pas actif.");
 
     const problems = [];
     if (!info["Connexion sécurisée (https/localhost)"]) problems.push("Foundry ouvert en http : micro bloqué");
-    else if (!monitor) problems.push("micro inaccessible");
+    else if (!monitor) problems.push("micro non activé : clique sur « Activer le micro » en haut de l'écran");
     else if (monitor.ctx?.state === "suspended") problems.push("audio en pause : cliquer une fois dans Foundry");
     if (!tokens.length) problems.push("aucun jeton trouvé (assigner le personnage dans Configuration du joueur)");
     if (!info["Indicateur sur le jeton activé"]) problems.push("indicateur de jeton désactivé dans les réglages");
@@ -432,7 +543,7 @@
       if (data?.action === "speak") applySpeaking(data.userId, !!data.speaking);
     });
 
-    startMicrophoneMonitor();
+    autoStartOrAsk();
   });
 
   // Un joueur qui se déconnecte ne doit pas rester « en train de parler »

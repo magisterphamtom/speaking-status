@@ -18,6 +18,10 @@ https://github.com/magisterphamtom/speaking-status/releases/latest/download/modu
 - Jeton entouré : celui du **personnage assigné** au joueur (Configuration du joueur), ou à défaut les jetons dont il est propriétaire.
 - Réglage **Seuil de parole** (par joueur) avec un vumètre : parler et placer le trait rouge juste sous le niveau de la voix.
 
+## Activer le micro
+
+Au chargement de la partie, si le micro n'est pas encore autorisé, un panneau s'affiche en haut de l'écran : cliquer sur **Activer le micro**, puis **Autoriser** dans la fenêtre du navigateur. Les fois suivantes, le micro démarre tout seul.
+
 ## Si ça ne marche pas pour un joueur
 
 Le joueur concerné lance cette macro sur son poste :
