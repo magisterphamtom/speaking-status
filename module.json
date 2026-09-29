@@ -1,21 +1,31 @@
-
 {
   "id": "speaking-status",
-  "name": "speaking-status",
   "title": "Speaking Status",
-  "description": "Indicates when a player is speaking using the microphone'",
-  "authors": [{"name":"Xaukael"}],
-  "version": "1.2.1",
+  "description": "Indique quel joueur parle au micro : liste des joueurs et jeton de son personnage entourés de sa couleur. Version réparée pour Foundry v13/v14, sans socketlib.",
+  "authors": [
+    {
+      "name": "Xaukael",
+      "flags": {}
+    },
+    {
+      "name": "magisterphamtom",
+      "flags": {}
+    }
+  ],
+  "version": "1.3.1",
   "socket": true,
   "compatibility": {
-      "minimum": "10",
-      "verified": "12"
-    },
-  "scripts": ["speaking-status.js"],
-  "relationships": {
-  "requires": []
+    "minimum": "12",
+    "verified": "14"
   },
-  "url": "https://github.com/xaukael/speaking-status/",
-  "manifest": "https://github.com/xaukael/speaking-status/raw/main/module.json",
-  "download": "https://github.com/xaukael/speaking-status/raw/main/speaking-status.zip"
+  "scripts": [
+    "speaking-status.js"
+  ],
+  "url": "https://github.com/magisterphamtom/speaking-status",
+  "flags": {},
+  "bugs": "https://github.com/magisterphamtom/speaking-status/issues",
+  "manifest": "https://github.com/magisterphamtom/speaking-status/releases/latest/download/module.json",
+  "download": "https://github.com/magisterphamtom/speaking-status/releases/download/v1.3.1/speaking-status.zip",
+  "license": "LICENSE",
+  "readme": "README.md"
 }
