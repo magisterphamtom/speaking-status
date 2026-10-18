@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/banner.png" alt="speaking-status" width="100%"></p>
+
 # Speaking Status
 
 Indique quel joueur parle au micro dans Foundry VTT : son nom dans la liste des joueurs et le jeton de son personnage s'entourent de sa couleur.
