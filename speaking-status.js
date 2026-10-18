@@ -414,7 +414,7 @@
         let max = -Infinity;
         for (const v of data) if (v > max) max = v;
         onLevel(Number.isFinite(max) ? max : -140);
-      }, 50);
+      }, 100); // 10 mesures par seconde : assez réactif, deux fois moins de calcul
 
       monitor = { stream, ctx, timer };
       return true;
